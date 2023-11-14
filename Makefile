@@ -40,8 +40,23 @@ LIBS	=lib/lib.a
 .c.o:
 	$(CC) $(CFLAGS) -c -o $*.o $<
 
+
+# 终极目标是构建出一个linux0.11的映像文件
+# 之所以成为映像文件，是因为Image需要在真机或者模拟器中才能运行
+# 因为Image中包含有bootsect、setup这样的依靠BIOS软件才能运行的启动内容
 all:	Image	
 
+# Image依赖于bootsect、setup、system
+# bootsect和setup与操作系统的加载有关
+# 其中system是真正的内核部分，包括了head（开启分页）、main(第一个C语言也是整个操作系统最重要的函数)
+# 这里制作Image文件的步骤是：
+# 1. 将system内核拷贝为system.tmp
+# 2. 使用strip去除system.tmp中的符号表等调试信息，减小文件大小
+# 3. 使用objcopy工具，将system.tmp文件中的.note段和.comment段去除，将结果输出到/tools/kernel
+# 4. 运行build.sh脚本，将bootsect和setup以及去除了调试信息的tools/kernel整合为Image，
+#			其中ROOT_DEV在本文件中是空的
+# 5. 删除system.tmp，tools/kernel
+# 6. sync是shell命令，确保在删除 system.tmp 和 tools/kernel 文件之前，将所有的数据写入磁盘
 Image: boot/bootsect boot/setup tools/system
 	cp -f tools/system system.tmp
 	strip system.tmp
@@ -51,6 +66,7 @@ Image: boot/bootsect boot/setup tools/system
 	rm tools/kernel -f
 	sync
 
+# disk是将制作的Image拷贝到当前主机的软盘上，linux上软盘的设备文件是/dev/fd0
 disk: Image
 	dd bs=8192 if=Image of=/dev/fd0
 
